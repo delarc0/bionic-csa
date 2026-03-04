@@ -55,15 +55,6 @@
       "parameters": {
         "method": "GET",
         "url": "https://raw.githubusercontent.com/delarc0/bionic-csa/main/petra-csa.md",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer YOUR_GITHUB_TOKEN"
-            }
-          ]
-        },
         "options": {
           "response": {
             "response": {
