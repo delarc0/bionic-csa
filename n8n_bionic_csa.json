@@ -1,0 +1,176 @@
+{
+  "name": "Bionic CSA - Email Draft",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Bionic CSA - Setup Guide\n\n### 1. Gmail OAuth2\n- Create a Gmail OAuth2 credential in n8n\n- Assign it to both **Gmail Trigger** and **Create Draft** nodes\n- Create an **AI-Draft** label in Gmail\n\n### 2. GitHub Token (Fetch Knowledge Base)\n- Replace `YOUR_GITHUB_TOKEN` in the Fetch Knowledge Base node\n- Token needs: Contents read access on `delarc0/bionic-csa`\n\n### 3. Anthropic API Key (Call Claude)\n- Replace `YOUR_ANTHROPIC_API_KEY` in the Call Claude node\n- Default model: `claude-sonnet-4-5-20250929`\n- For best quality: change to `claude-opus-4-6` in Build Prompt code\n\n### 4. Gmail Trigger Label\n- Open the Gmail Trigger node and select the **AI-Draft** label from the dropdown\n- The label must exist in Gmail first\n\n### How it works\n1. You label an email **AI-Draft** in Gmail\n2. Workflow triggers within 1 minute\n3. Fetches knowledge base from GitHub\n4. Claude drafts a reply using BIONIC knowledge\n5. Draft appears in Gmail in the same thread\n6. You review, edit if needed, hit send",
+        "height": 520,
+        "width": 420,
+        "color": 4
+      },
+      "name": "Setup Guide",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [180, -280],
+      "id": "a1b2c3d4-0001-4000-8000-000000000001"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail Bionic"
+        }
+      },
+      "notes": "Configure: Select the AI-Draft label from the filters dropdown after connecting your Gmail credential."
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $input.first().json;\n\nlet body = (email.textPlain || email.snippet || email.text || '').trim();\nconst markers = [/\\n--\\s*\\n/, /\\nOn .+ wrote:\\n/i, /\\nDen .+ skrev:\\n/i];\nfor (const m of markers) {\n  const idx = body.search(m);\n  if (idx > 0) body = body.substring(0, idx).trim();\n}\n\nconst from = email.from || '';\nconst fromMatch = from.match(/^(.+?)\\s*<(.+?)>$/);\nconst senderName = fromMatch ? fromMatch[1].trim() : '';\nconst senderEmail = fromMatch ? fromMatch[2].trim() : from.trim();\n\nreturn [{\n  json: {\n    senderName,\n    senderEmail,\n    subject: email.subject || '',\n    body,\n    threadId: email.threadId || email.id,\n    messageId: email.id || email.messageId\n  }\n}];"
+      },
+      "name": "Extract Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300],
+      "id": "a1b2c3d4-0003-4000-8000-000000000003"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://raw.githubusercontent.com/delarc0/bionic-csa/main/petra-csa.md",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GITHUB_TOKEN"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "name": "Fetch Knowledge Base",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1160, 300],
+      "id": "a1b2c3d4-0004-4000-8000-000000000004"
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $('Extract Email').first().json;\nconst kbRaw = $('Fetch Knowledge Base').first().json;\nconst kb = kbRaw.data || (typeof kbRaw === 'string' ? kbRaw : '');\n\nconst userMessage = 'Skriv ett utkast till svar p\\u00e5 detta mejl.\\n'\n  + 'F\\u00f6lj instruktionerna i din knowledge base exakt.\\n'\n  + 'Svara BARA med mejltexten - inget annat. Ingen f\\u00f6rklaring, bara sj\\u00e4lva mejlet.\\n\\n'\n  + 'Fr\\u00e5n: ' + (email.senderName || 'Ok\\u00e4nd') + ' <' + email.senderEmail + '>\\n'\n  + '\\u00c4mne: ' + email.subject + '\\n\\n'\n  + email.body;\n\nconst requestBody = JSON.stringify({\n  model: 'claude-sonnet-4-5-20250929',\n  max_tokens: 1024,\n  temperature: 0.3,\n  system: kb,\n  messages: [{ role: 'user', content: userMessage }]\n});\n\nreturn [{\n  json: {\n    requestBody,\n    senderEmail: email.senderEmail,\n    subject: email.subject,\n    threadId: email.threadId\n  }\n}];"
+      },
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300],
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "notes": "To use Opus instead of Sonnet: change model to 'claude-opus-4-6'"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "name": "Call Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1640, 300],
+      "id": "a1b2c3d4-0006-4000-8000-000000000006"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst draft = response.content[0].text;\nconst draftHtml = draft.replace(/\\n/g, '<br>');\n\nreturn [{\n  json: { draftHtml }\n}];"
+      },
+      "name": "Format Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 300],
+      "id": "a1b2c3d4-0007-4000-8000-000000000007"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ (/^(Re|Sv|RE|SV):/i).test($('Extract Email').first().json.subject) ? $('Extract Email').first().json.subject : 'Re: ' + $('Extract Email').first().json.subject }}",
+        "message": "={{ $json.draftHtml }}",
+        "toList": "={{ $('Extract Email').first().json.senderEmail }}",
+        "options": {
+          "threadId": "={{ $('Extract Email').first().json.threadId }}"
+        }
+      },
+      "name": "Create Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2120, 300],
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail Bionic"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [[{"node": "Extract Email", "type": "main", "index": 0}]]
+    },
+    "Extract Email": {
+      "main": [[{"node": "Fetch Knowledge Base", "type": "main", "index": 0}]]
+    },
+    "Fetch Knowledge Base": {
+      "main": [[{"node": "Build Prompt", "type": "main", "index": 0}]]
+    },
+    "Build Prompt": {
+      "main": [[{"node": "Call Claude", "type": "main", "index": 0}]]
+    },
+    "Call Claude": {
+      "main": [[{"node": "Format Draft", "type": "main", "index": 0}]]
+    },
+    "Format Draft": {
+      "main": [[{"node": "Create Draft", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
