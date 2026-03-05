@@ -39,11 +39,11 @@
           "name": "Gmail Bionic"
         }
       },
-      "notes": "Configure: Select the AI-Draft label from the filters dropdown after connecting your Gmail credential."
+      "notes": "REQUIRED: Select the AI-Draft label from the filters dropdown. Without this, the workflow drafts replies to ALL unread emails."
     },
     {
       "parameters": {
-        "jsCode": "const email = $input.first().json;\n\nlet body = (email.textPlain || email.snippet || email.text || '').trim();\nconst markers = [/\\n--\\s*\\n/, /\\nOn .+ wrote:\\n/i, /\\nDen .+ skrev:\\n/i];\nfor (const m of markers) {\n  const idx = body.search(m);\n  if (idx > 0) body = body.substring(0, idx).trim();\n}\n\nconst from = email.from || '';\nconst fromMatch = from.match(/^(.+?)\\s*<(.+?)>$/);\nconst senderName = fromMatch ? fromMatch[1].trim() : '';\nconst senderEmail = fromMatch ? fromMatch[2].trim() : from.trim();\n\nreturn [{\n  json: {\n    senderName,\n    senderEmail,\n    subject: email.subject || '',\n    body,\n    threadId: email.threadId || email.id,\n    messageId: email.id || email.messageId\n  }\n}];"
+        "jsCode": "const email = $input.first().json;\n\n// Date guard: skip emails older than 7 days\nconst emailDate = new Date(email.date || Number(email.internalDate) || 0);\nconst cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);\nif (emailDate < cutoff) {\n  return [];\n}\n\nlet body = (email.textPlain || email.snippet || email.text || '').trim();\nconst markers = [/\\n--\\s*\\n/, /\\nOn .+ wrote:\\n/i, /\\nDen .+ skrev:\\n/i];\nfor (const m of markers) {\n  const idx = body.search(m);\n  if (idx > 0) body = body.substring(0, idx).trim();\n}\n\nconst from = email.from || '';\nconst fromMatch = from.match(/^(.+?)\\s*<(.+?)>$/);\nconst senderName = fromMatch ? fromMatch[1].trim() : '';\nconst senderEmail = fromMatch ? fromMatch[2].trim() : from.trim();\n\nreturn [{\n  json: {\n    senderName,\n    senderEmail,\n    subject: email.subject || '',\n    body,\n    threadId: email.threadId || email.id,\n    messageId: email.id || email.messageId\n  }\n}];"
       },
       "name": "Extract Email",
       "type": "n8n-nodes-base.code",
