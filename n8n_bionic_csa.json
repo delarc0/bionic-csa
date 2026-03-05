@@ -110,7 +110,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const response = $input.first().json;\nconst draft = response.content[0].text;\nconst draftHtml = draft.replace(/\\n/g, '<br>');\n\nreturn [{\n  json: { draftHtml }\n}];"
+        "jsCode": "const response = $input.first().json;\nconst draft = response.content[0].text;\nconst draftHtml = '<html><body>' + draft.replace(/\\n/g, '<br>') + '</body></html>';\n\nreturn [{\n  json: { draftHtml }\n}];"
       },
       "name": "Format Draft",
       "type": "n8n-nodes-base.code",
@@ -123,6 +123,7 @@
         "resource": "draft",
         "subject": "={{ (/^(Re|Sv|RE|SV):/i).test($('Extract Email').first().json.subject) ? $('Extract Email').first().json.subject : 'Re: ' + $('Extract Email').first().json.subject }}",
         "message": "={{ $json.draftHtml }}",
+        "emailType": "html",
         "toList": "={{ $('Extract Email').first().json.senderEmail }}",
         "options": {
           "threadId": "={{ $('Extract Email').first().json.threadId }}"
